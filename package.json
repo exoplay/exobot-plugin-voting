@@ -1,0 +1,34 @@
+{
+  "name": "@exoplay/exobot-plugin-voting",
+  "version": "1.0.0",
+  "description": "exobot plugin for voting events",
+  "main": "voting.js",
+  "scripts": {
+    "build": "exobot build -i src/voting.js -o voting.js",
+    "watch": "exobot build --watch -i src/voting.js -o voting.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/exoplay/exobot-plugin-voting.git"
+  },
+  "keywords": [
+    "exobot",
+    "chat",
+    "bot",
+    "plugin",
+    "voting"
+  ],
+  "author": "Jack Lawson <ajacksified@gmail.com>",
+  "license": "LGPL",
+  "bugs": {
+    "url": "https://github.com/exoplay/exobot-plugin-voting/issues"
+  },
+  "homepage": "https://github.com/exoplay/exobot-plugin-voting#readme",
+  "peerDependencies": {
+    "@exoplay/exobot": "3.x"
+  },
+  "devDependencies": {
+    "@exoplay/exobot": "3.x",
+    "@exoplay/exobot-build": "^0.0.6"
+  }
+}
