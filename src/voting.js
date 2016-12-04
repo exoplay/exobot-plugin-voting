@@ -6,7 +6,6 @@ export class Voting extends ChatPlugin {
   defaultDatabase = {
     quickpoll: { votes: [], poll: {
       open: false,
-      channelID: '',
       question: '',
       timeout: 0,
       userID: '',
@@ -19,22 +18,21 @@ export class Voting extends ChatPlugin {
   propTypes = {};
 
   @permissionGroup('public');
-  @help('Votes list - Lists all votes that are open in channel and 3 recent closed votes');
+  @help('Votes list - Lists all votes that are open and 3 recent closed votes');
   @respond(/^votes list/i);
-  async listVotes(match, message) {
+  async listVotes() {
     await this.databaseInitialized();
     const voteList = [];
     const closedList = [];
     const currentPoll = this.bot.db.get('quickpoll.poll').value();
     let pollCount = 0;
-    if (currentPoll.open === true && currentPoll.channelID === message.channel.id) {
+    if (currentPoll.open === true) {
       voteList.push(`Open quickpoll: ${currentPoll.question}\n`);
       pollCount++;
     }
 
     voteList.push('Open Polls:');
     this.bot.db.get('voting.measures')
-      .filter({channelID: message.channel.id})
       .forEach((m) => {
         const measureIDString = `000${m.id.toString(36)}`.slice(-3);
         if (m.open) {
@@ -52,12 +50,12 @@ export class Voting extends ChatPlugin {
       return `${voteList.join('\n')}\n\nClosed Polls:\n${closedText}`;
     }
 
-    return 'No quickpolls or measures found in this channel';
+    return 'No quickpolls or measures found';
   }
 
   @permissionGroup('manageVotes');
-  @help('Votes delete quickpoll - Closes open quickpoll in channel\n' +
-        'Votes delete measure $id - Closes measure $id in channel');
+  @help('Votes delete quickpoll - Closes open quickpoll\n' +
+        'Votes delete measure $id - Closes measure $id');
   @respond(/^votes delete\s+(quickpoll|measure)\s*(?:\$(\w{3}))?/i);
   async deleteVoteAdmin([, type, id], message) {
     await this.databaseInitialized();
@@ -69,46 +67,41 @@ export class Voting extends ChatPlugin {
     }
 
     const selectedPoll = this.bot.db.get('voting.measures')
-      .filter({id: parseInt(id, 36), channelID: message.channel.id})
+      .filter({id: parseInt(id, 36)})
       .first()
       .value();
-    if (selectedPoll.channelID === message.channel.id && selectedPoll.userID !== message.user.id) {
+    if (selectedPoll.userID !== message.user.id) {
       return this.deleteVote(type, id, message);
     }
   }
 
   @permissionGroup('public');
-  @help('Votes delete quickpoll - Closes open quickpoll in channel\n' +
-        'Votes delete measure $id - Closes measure $id in channel');
+  @help('Votes delete quickpoll - Closes open quickpoll\n' +
+        'Votes delete measure $id - Closes measure $id');
   @respond(/^votes delete\s+(quickpoll|measure)\s*(?:\$(\w{3}))?/i);
   async deleteVoteOwned([, type, id], message) {
     await this.databaseInitialized();
     if (type === 'quickpoll') {
       const selPoll = this.bot.db.get('quickpoll.poll').value();
-      if (selPoll.userID === message.user.id && selPoll.channelID === message.channel.id) {
+      if (selPoll.userID === message.user.id) {
         return this.deleteVote(type, id, message);
       }
     }
 
     const selPoll = this.bot.db.get('voting.measures')
-      .filter({id: parseInt(id, 36), channelID: message.channel.id})
+      .filter({id: parseInt(id, 36)})
       .first()
       .value();
-    if (selPoll.channelID === message.channel.id && selPoll.userID === message.user.id) {
+    if (selPoll.userID === message.user.id) {
       return this.deleteVote(type, id, message);
     }
 
   }
 
-  async deleteVote(type, id, message) {
+  async deleteVote(type, id) {
     if (type === 'quickpoll') {
-      const currentPoll = this.bot.db.get('quickpoll.poll').value();
-      if (currentPoll.channelID === message.channel.id) {
-        this.initQuickpoll();
-        return 'Quickpoll has been deleted.';
-      }
-
-      return 'No quickpoll open in this channel.';
+      this.initQuickpoll();
+      return 'Quickpoll has been deleted.';
     }
 
     const measureID = parseInt(id, 36);
@@ -122,76 +115,76 @@ export class Voting extends ChatPlugin {
   }
 
   @permissionGroup('manageVotes');
-  @help('Votes close quickpoll - Closes open quickpoll in channel\n' +
-        'Votes close measure $id - Closes measure $id in channel');
+  @help('Votes close quickpoll - Closes open quickpoll\n' +
+        'Votes close measure $id - Closes measure $id');
   @respond(/^votes close\s+(quickpoll|measure)\s*(?:\$(\w{3}))?/i);
   async closeVoteAdmin([, type, id], message) {
     await this.databaseInitialized();
     if (type === 'quickpoll') {
       const selPoll = this.bot.db.get('quickpoll.poll').value();
-      if (selPoll.userID !== message.user.id && selPoll.channelID === message.channel.id) {
+      if (selPoll.userID !== message.user.id) {
         return this.closeVote(type, id, message);
       }
     }
 
     const selPoll = this.bot.db.get('voting.measures')
-      .filter({id: parseInt(id, 36), channelID: message.channel.id})
+      .filter({id: parseInt(id, 36)})
       .first()
       .value();
-    if (selPoll.channelID === message.channel.id && selPoll.userID !== message.user.id) {
+    if (selPoll.userID !== message.user.id) {
       return this.closeVote(type, id, message);
     }
   }
 
   @permissionGroup('public');
-  @help('Votes close quickpoll - Closes open quickpoll in channel\n' +
-        'Votes close measure $id - Closes measure $id in channel');
+  @help('Votes close quickpoll - Closes open quickpoll\n' +
+        'Votes close measure $id - Closes measure $id');
   @respond(/^votes close\s+(quickpoll|measure)\s*(?:\$(\w{3}))?/i);
   async closeVoteOwned([,type, id], message) {
     await this.databaseInitialized();
     if (type === 'quickpoll') {
       const selPoll = this.bot.db.get('quickpoll.poll').value();
-      if (selPoll.userID === message.user.id && selPoll.channelID === message.channel.id) {
+      if (selPoll.userID === message.user.id) {
         return this.closeVote(type, id, message);
       }
     }
 
     const selPoll = this.bot.db.get('voting.measures')
-      .filter({id: parseInt(id, 36), channelID: message.channel.id})
+      .filter({id: parseInt(id, 36)})
       .first()
       .value();
-    if (selPoll.channelID === message.channel.id && selPoll.userID === message.user.id) {
+    if (selPoll.userID === message.user.id) {
       return this.closeVote(type, id, message);
     }
   }
 
-  async closeVote(type, id, message) {
+  async closeVote(type, id) {
     if (type === 'quickpoll') {
       const currentPoll = this.bot.db.get('quickpoll.poll').value();
-      if (currentPoll.open === true && currentPoll.channelID === message.channel.id) {
+      if (currentPoll.open === true) {
         this.bot.db.set('quickpoll.poll.open', false).value();
         return `Poll "${currentPoll.question}" has been closed.`;
       }
 
-      return 'No quickpoll open in this channel.';
+      return 'No quickpoll open.';
     }
 
     const currentMeasure = this.bot.db.get('voting.measures')
-      .filter({id: parseInt(id, 36), channelID: message.channel.id})
+      .filter({id: parseInt(id, 36)})
       .first()
       .value();
-    if (currentMeasure.open === true && currentMeasure.channelID === message.channel.id) {
+    if (currentMeasure.open === true) {
       currentMeasure.open = false;
       return `Measure "${currentMeasure.text}" has been closed.`;
     }
 
-    return 'No vote with that ID open in this channel';
+    return 'No vote with that ID open.';
   }
 
   @permissionGroup('public');
   @help('Votes results [$id] - Outputs the results of quickpoll or measure with optional $id');
   @respond(/^votes results\s*(?:\$(\w{3}))?/i);
-  async results ([, id], message) {
+  async results ([, id]) {
     let results;
     const resultsSorted = [];
     let response;
@@ -199,24 +192,23 @@ export class Voting extends ChatPlugin {
     if (id) {
       const measureNum = parseInt(id, 36);
       const currentMeasure = this.bot.db.get('voting.measures')
-        .filter({id: measureNum, channelID: message.channel.id})
+        .filter({id: measureNum})
         .first()
         .value();
       if (currentMeasure) {
         results = this.bot.db.get('voting.votes')
-          .filter({measureID: measureNum, channelID: message.channel.id})
+          .filter({measureID: measureNum})
           .countBy((m) => m.response)
           .value();
         response = `Voting results for $${id} ${currentMeasure.text}:\n`;
       }
     } else {
       const currentPoll = this.bot.db.get('quickpoll.poll').value();
-      if (currentPoll.channelID !== message.channel.id) {
-        return `No Quickpoll running for ${message.channel.name}`;
+      if (currentPoll.text === '') {
+        return 'No Quickpoll running.';
       }
 
       results = this.bot.db.get('quickpoll.votes')
-        .filter({channelID: message.channel.id})
         .countBy((m) => m.response)
       .value();
       response = `Voting results for "${currentPoll.question}":\n`;
@@ -243,15 +235,15 @@ export class Voting extends ChatPlugin {
   }
 
   @permissionGroup('createVotes');
-  @help('Votes create quickpoll "Your question" - Creates quickpoll in channel\n' +
+  @help('Votes create quickpoll "Your question" - Creates quickpoll\n' +
         'Votes create measure "Your Question"|"Option 1"|"Option 2"|[other] - ' +
-        'Creates measure in channel with options and optional other entry\n');
+        'Creates measure with options and optional other entry\n');
   @respond(/^votes create\s+(quickpoll|measure)\s+(.+)/i);
   async createVote([, type, pollText], message) {
     await this.databaseInitialized();
     if (type === 'quickpoll') {
       if (this.bot.db.get('quickpoll.poll.open').value() === false) {
-        this.initQuickpoll(true, message.channel.id, message.user.id, pollText);
+        this.initQuickpoll(true, message.user.id, pollText);
         return `Quickpoll created: ${pollText} type "vote <your vote>" to respond.`;
       }
 
@@ -266,7 +258,6 @@ export class Voting extends ChatPlugin {
       allowOther: measureDetails.includes('other'),
       open: true,
       timeout: 0,
-      channelID: message.channel.id,
       userID: message.user.id,
     };
     const measureIDString = `000${measure.id.toString(36)}`.slice(-3);
@@ -295,7 +286,7 @@ export class Voting extends ChatPlugin {
       const measureNum = parseInt(id, 36);
       let responseText;
       const currentMeasure = this.bot.db.get('voting.measures')
-        .filter({id: measureNum, open: true, channelID: message.channel.id})
+        .filter({id: measureNum, open: true})
         .first()
         .value();
       if (currentMeasure) {
@@ -315,18 +306,17 @@ export class Voting extends ChatPlugin {
         const vote = this.buildVote(false,
           measureNum,
           responseText,
-          message.user.id,
-          message.channel.id);
+          message.user.id,);
         this.bot.db.get('voting.votes')
           .push(vote)
           .value();
       } else {
-        return 'No vote with that ID open in this channel';
+        return 'No vote with that ID open.';
       }
     } else if (voteText) {  //Quickpoll vote present
       const currentPoll = this.bot.db.get('quickpoll.poll').value();
-      if (currentPoll.open === true && currentPoll.channelID === message.channel.id) {
-        const vote = this.buildVote(true, '', voteText, message.user.id, message.channel.id);
+      if (currentPoll.open === true) {
+        const vote = this.buildVote(true, '', voteText, message.user.id);
         this.bot.db.get('quickpoll.votes')
           .push(vote)
           .value();
@@ -334,7 +324,7 @@ export class Voting extends ChatPlugin {
     } else {  //No vote present
       if (id) {
         const currentMeasure = this.bot.db.get('voting.measures')
-          .filter({id: parseInt(id, 36), open: true, channelID: message.channel.id})
+          .filter({id: parseInt(id, 36), open: true})
           .first()
           .value();
         const measureIDString = `000${currentMeasure.id.toString(36)}`.slice(-3);
@@ -354,21 +344,20 @@ export class Voting extends ChatPlugin {
       }
 
       const currentPoll = this.bot.db.get('quickpoll.poll').value();
-      if (currentPoll.channelID !== message.channel.id || !currentPoll.open) {
-        return `No Quickpoll running for ${message.channel.name}`;
+      if (!currentPoll.open) {
+        return 'No Quickpoll running.';
       }
 
       return `Quickpoll: ${currentPoll.question} type "vote your response" to respond.`;
     }
   }
 
-  buildVote (quickpoll, measure, responseText, userID, channel) {
+  buildVote (quickpoll, measure, responseText, userID) {
     if (quickpoll) {
       return {
         response: responseText,
         user: userID,
         timestamp: Date.now(),
-        channelID: channel,
       };
     }
     return {
@@ -376,7 +365,6 @@ export class Voting extends ChatPlugin {
       response: responseText,
       user: userID,
       timestamp: Date.now(),
-      channelID: channel,
     };
 
   }
@@ -413,11 +401,10 @@ export class Voting extends ChatPlugin {
 
   }
 
-  async initQuickpoll(pollState, channel, user, questiontext, polltimeout) {
+  async initQuickpoll(pollState, user, questiontext, polltimeout) {
     await this.databaseInitialized();
     const pollOptions = {
       open: pollState || false,
-      channelID: channel || '',
       question: questiontext || '',
       timeout: polltimeout || 0,
       userID: user || '',
