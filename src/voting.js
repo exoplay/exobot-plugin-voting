@@ -380,27 +380,6 @@ export class Voting extends ChatPlugin {
     return 1;
   }
 
-  async initVoting() {
-    await this.databaseInitialized();
-    this.bot.db.get('voting').value();
-    const voteList = this.bot.db.get('voting.votes')
-              .first()
-              .value();
-    const measureList = this.bot.db.get('voting.measures')
-              .first()
-              .value();
-    if (typeof voteList === 'undefined') {
-      this.bot.db.set('voting.votes', [])
-      .value();
-    }
-
-    if (typeof measureList === 'undefined') {
-      this.bot.db.set('voting.measures', [])
-      .value();
-    }
-
-  }
-
   async initQuickpoll(pollState, user, questiontext, polltimeout) {
     await this.databaseInitialized();
     const pollOptions = {
