@@ -1,64 +1,65 @@
-import { ChatPlugin, listen, respond, help, permissionGroup } from '@exoplay/exobot';
+import { Plugin, listen, respond, help, permissionGroup } from '@exoplay/exobot';
 
-export class Voting extends ChatPlugin {
-  name = 'voting';
+export default class Voting extends Plugin {
+  static type = 'voting';
 
-  defaultDatabase = {
-    quickpoll: { votes: [], poll: {
-      open: false,
-      question: '',
-      timeout: 0,
-      userID: '',
-    } },
-    voting: { votes: [], measures: [] },
+  static defaultDatabase = {
+    quickpoll: {
+      votes: [],
+      poll: {
+        open: false,
+        question: '',
+        timeout: 0,
+        userID: '',
+      },
+    },
+    voting: { votes: [], polls: [] },
   };
 
-  _requiresDatabase = true;
+  static _requiresDatabase = true;
 
-  propTypes = {};
+  static propTypes = {};
 
   @permissionGroup('public');
-  @help('Votes list - Lists all votes that are open and 3 recent closed votes');
-  @respond(/^votes list/i);
+  @help('/list votes - Lists all votes that are open and 3 recent closed votes');
+  @respond(/^list votes$/i);
   async listVotes() {
-    await this.databaseInitialized();
     const voteList = [];
     const closedList = [];
     const currentPoll = this.bot.db.get('quickpoll.poll').value();
     let pollCount = 0;
     if (currentPoll.open === true) {
       voteList.push(`Open quickpoll: ${currentPoll.question}\n`);
-      pollCount++;
+      pollCount += 1;
     }
 
     voteList.push('Open Polls:');
-    this.bot.db.get('voting.measures')
+    this.bot.db.get('voting.polls')
       .forEach((m) => {
-        const measureIDString = `000${m.id.toString(36)}`.slice(-3);
+        const pollIDString = `000${m.id.toString(36)}`.slice(-3);
         if (m.open) {
-          pollCount++;
-          voteList.push(`Measure $${measureIDString}: ${m.text}`);
+          pollCount += 1;
+          voteList.push(`Poll $${pollIDString}: ${m.text}`);
         } else {
-          pollCount++;
-          closedList.push(`Measure $${measureIDString}: ${m.text}`);
+          pollCount += 1;
+          closedList.push(`Poll $${pollIDString}: ${m.text}`);
         }
       })
       .value();
-    const closedText = closedList.slice(closedList.length-3)
+    const closedText = closedList.slice(closedList.length - 3)
       .join('\n');
     if (pollCount > 0) {
       return `${voteList.join('\n')}\n\nClosed Polls:\n${closedText}`;
     }
 
-    return 'No quickpolls or measures found';
+    return 'No quickpolls or polls found';
   }
 
   @permissionGroup('manageVotes');
-  @help('Votes delete quickpoll - Closes open quickpoll\n' +
-        'Votes delete measure $id - Closes measure $id');
-  @respond(/^votes delete\s+(quickpoll|measure)\s*(?:\$(\w{3}))?/i);
+  @help('/delete quickpoll - Deletes quickpoll\n' +
+        '/delete poll $id - Deletes poll $id');
+  @respond(/^delete\s+(quickpoll|poll)\s*(?:\$(\w{3}))?/i);
   async deleteVoteAdmin([, type, id], message) {
-    await this.databaseInitialized();
     if (type === 'quickpoll') {
       const selectedPoll = this.bot.db.get('quickpoll.poll').value();
       if (selectedPoll.userID !== message.user.id) {
@@ -66,8 +67,8 @@ export class Voting extends ChatPlugin {
       }
     }
 
-    const selectedPoll = this.bot.db.get('voting.measures')
-      .filter({id: parseInt(id, 36)})
+    const selectedPoll = this.bot.db.get('voting.polls')
+      .filter({ id: parseInt(id, 36) })
       .first()
       .value();
     if (selectedPoll.userID !== message.user.id) {
@@ -76,11 +77,10 @@ export class Voting extends ChatPlugin {
   }
 
   @permissionGroup('public');
-  @help('Votes delete quickpoll - Closes open quickpoll\n' +
-        'Votes delete measure $id - Closes measure $id');
-  @respond(/^votes delete\s+(quickpoll|measure)\s*(?:\$(\w{3}))?/i);
+  @help('/delete quickpoll - Deletes quickpoll\n' +
+        '/delete poll $id - Deletes poll $id');
+  @respond(/^delete\s+(quickpoll|poll)\s*(?:\$(\w{3}))?/i);
   async deleteVoteOwned([, type, id], message) {
-    await this.databaseInitialized();
     if (type === 'quickpoll') {
       const selPoll = this.bot.db.get('quickpoll.poll').value();
       if (selPoll.userID === message.user.id) {
@@ -88,14 +88,13 @@ export class Voting extends ChatPlugin {
       }
     }
 
-    const selPoll = this.bot.db.get('voting.measures')
-      .filter({id: parseInt(id, 36)})
+    const selPoll = this.bot.db.get('voting.polls')
+      .filter({ id: parseInt(id, 36) })
       .first()
       .value();
     if (selPoll.userID === message.user.id) {
       return this.deleteVote(type, id, message);
     }
-
   }
 
   async deleteVote(type, id) {
@@ -104,22 +103,21 @@ export class Voting extends ChatPlugin {
       return 'Quickpoll has been deleted.';
     }
 
-    const measureID = parseInt(id, 36);
-    this.bot.db.get('voting.measures')
-      .remove(m => m.id === measureID)
+    const pollID = parseInt(id, 36);
+    this.bot.db.get('voting.polls')
+      .remove(m => m.id === pollID)
       .value();
     this.bot.db.get('voting.votes')
-      .remove(m => m.measureID === measureID)
+      .remove(m => m.pollID === pollID)
       .value();
-    return `Measure ${id} deleted.`;
+    return `Poll ${id} deleted.`;
   }
 
   @permissionGroup('manageVotes');
-  @help('Votes close quickpoll - Closes open quickpoll\n' +
-        'Votes close measure $id - Closes measure $id');
-  @respond(/^votes close\s+(quickpoll|measure)\s*(?:\$(\w{3}))?/i);
+  @help('/close quickpoll - Closes open quickpoll\n' +
+        '/close poll $id - Closes poll $id');
+  @respond(/^close\s+(quickpoll|poll)\s*(?:\$(\w{3}))?/i);
   async closeVoteAdmin([, type, id], message) {
-    await this.databaseInitialized();
     if (type === 'quickpoll') {
       const selPoll = this.bot.db.get('quickpoll.poll').value();
       if (selPoll.userID !== message.user.id) {
@@ -127,8 +125,8 @@ export class Voting extends ChatPlugin {
       }
     }
 
-    const selPoll = this.bot.db.get('voting.measures')
-      .filter({id: parseInt(id, 36)})
+    const selPoll = this.bot.db.get('voting.polls')
+      .filter({ id: parseInt(id, 36) })
       .first()
       .value();
     if (selPoll.userID !== message.user.id) {
@@ -137,11 +135,10 @@ export class Voting extends ChatPlugin {
   }
 
   @permissionGroup('public');
-  @help('Votes close quickpoll - Closes open quickpoll\n' +
-        'Votes close measure $id - Closes measure $id');
-  @respond(/^votes close\s+(quickpoll|measure)\s*(?:\$(\w{3}))?/i);
-  async closeVoteOwned([,type, id], message) {
-    await this.databaseInitialized();
+  @help('/close quickpoll - Closes open quickpoll\n' +
+        '/close poll $id - Closes poll $id');
+  @respond(/^close\s+(quickpoll|poll)\s*(?:\$(\w{3}))?/i);
+  async closeVoteOwned([, type, id], message) {
     if (type === 'quickpoll') {
       const selPoll = this.bot.db.get('quickpoll.poll').value();
       if (selPoll.userID === message.user.id) {
@@ -149,8 +146,8 @@ export class Voting extends ChatPlugin {
       }
     }
 
-    const selPoll = this.bot.db.get('voting.measures')
-      .filter({id: parseInt(id, 36)})
+    const selPoll = this.bot.db.get('voting.polls')
+      .filter({ id: parseInt(id, 36) })
       .first()
       .value();
     if (selPoll.userID === message.user.id) {
@@ -169,38 +166,36 @@ export class Voting extends ChatPlugin {
       return 'No quickpoll open.';
     }
 
-    const currentMeasure = this.bot.db.get('voting.measures')
-      .filter({id: parseInt(id, 36)})
+    const currentPoll = this.bot.db.get('voting.polls')
+      .filter({ id: parseInt(id, 36) })
       .first()
       .value();
-    if (currentMeasure.open === true) {
-      currentMeasure.open = false;
-      return `Measure "${currentMeasure.text}" has been closed.`;
+    if (currentPoll.open === true) {
+      currentPoll.open = false;
+      return `Poll "${currentPoll.text}" has been closed.`;
     }
 
     return 'No vote with that ID open.';
   }
 
   @permissionGroup('public');
-  @help('Votes results [$id] - Outputs the results of quickpoll or measure with optional $id');
-  @respond(/^votes results\s*(?:\$(\w{3}))?/i);
-  async results ([, id]) {
+  @help('/voting results [$id] - Outputs the results of quickpoll or poll when $id is specified');
+  @respond(/^voting results\s*(?:\$(\w{3}))?/i);
+  async results([, id]) {
     let results;
-    const resultsSorted = [];
     let response;
-    await this.databaseInitialized();
     if (id) {
-      const measureNum = parseInt(id, 36);
-      const currentMeasure = this.bot.db.get('voting.measures')
-        .filter({id: measureNum})
+      const pollNum = parseInt(id, 36);
+      const currentPoll = this.bot.db.get('voting.polls')
+        .filter({ id: pollNum })
         .first()
         .value();
-      if (currentMeasure) {
+      if (currentPoll) {
         results = this.bot.db.get('voting.votes')
-          .filter({measureID: measureNum})
-          .countBy((m) => m.response)
+          .filter({ pollID: pollNum })
+          .countBy(m => m.response)
           .value();
-        response = `Voting results for $${id} ${currentMeasure.text}:\n`;
+        response = `Voting results for $${id} ${currentPoll.text}:\n`;
       }
     } else {
       const currentPoll = this.bot.db.get('quickpoll.poll').value();
@@ -209,38 +204,32 @@ export class Voting extends ChatPlugin {
       }
 
       results = this.bot.db.get('quickpoll.votes')
-        .countBy((m) => m.response)
-      .value();
+        .countBy(m => m.response)
+        .value();
       response = `Voting results for "${currentPoll.question}":\n`;
     }
 
     if (Object.keys(results).length === 0) {
       return 'No votes yet';
     }
-
-    for (const k in results) {
-      if (results.hasOwnProperty(k)) {
-        resultsSorted.push({key:k, value:results[k]});
-      }
-    }
-
+    console.log(results);
+    const resultsSorted = Object.keys(results).map(k => ({ key: k, value: results[k] }));
     if (resultsSorted.length > 1) {
-      resultsSorted.sort((a,b) => b.value-a.value);
+      resultsSorted.sort((a, b) => b.value - a.value);
     }
 
     resultsSorted.forEach((val) => {
-      response += `${val.key} recieved ${val.value} point${val.value === 1 ? '':'s'}\n`;
+      response += `${val.key} recieved ${val.value} point${val.value === 1 ? '' : 's'}\n`;
     });
     return response;
   }
 
   @permissionGroup('createVotes');
-  @help('Votes create quickpoll "Your question" - Creates quickpoll\n' +
-        'Votes create measure "Your Question"|"Option 1"|"Option 2"|[other] - ' +
-        'Creates measure with options and optional other entry\n');
-  @respond(/^votes create\s+(quickpoll|measure)\s+(.+)/i);
+  @help('/create quickpoll "Your question" - Creates quickpoll\n' +
+        '/create poll "Your Question"|"Option 1"|"Option 2"|"Option n"|[other] - ' +
+        'Creates poll with options and optional other entry\n');
+  @respond(/^create\s+(quickpoll|poll)\s+(.+)/i);
   async createVote([, type, pollText], message) {
-    await this.databaseInitialized();
     if (type === 'quickpoll') {
       if (this.bot.db.get('quickpoll.poll.open').value() === false) {
         this.initQuickpoll(true, message.user.id, pollText);
@@ -250,70 +239,71 @@ export class Voting extends ChatPlugin {
       return 'Cannot create quickpoll.  Quickpoll already in progress.';
     }
 
-    const measureDetails = pollText.split('|');
-    const measure = {
-      id: this.getNextMeasureID(),
-      text: measureDetails[0],
-      choices: measureDetails.slice(1),
-      allowOther: measureDetails.includes('other'),
+    const pollDetails = pollText.split('|');
+    const poll = {
+      id: this.getNextPollID(),
+      text: pollDetails[0],
+      choices: pollDetails.slice(1),
+      allowOther: pollDetails.includes('other'),
       open: true,
       timeout: 0,
       userID: message.user.id,
     };
-    const measureIDString = `000${measure.id.toString(36)}`.slice(-3);
-    this.bot.db.get('voting.measures')
-      .push(measure)
+    const pollIDString = `000${poll.id.toString(36)}`.slice(-3);
+    this.bot.db.get('voting.polls')
+      .push(poll)
       .value();
-    let measureText = `Measure created: ${measure.text} Choices:\n`;
+    let pollConfirmation = `Poll created: ${poll.text} Choices:\n`;
     let choiceNum = 0;
-    measure.choices.forEach((choice) => {
+    poll.choices.forEach((choice) => {
       if (choice !== 'other') {
-        measureText += `${++choiceNum}.\t${choice}\n`;
+        choiceNum += 1;
+        pollConfirmation += `${choiceNum}.\t${choice}\n`;
       }
     });
-    measureText += `Type "vote $${measureIDString} 1-${choiceNum}"`;
-    measureText += `${measure.allowOther ? ` or "vote $${measureIDString} <your vote>" ` : ' '}`;
-    measureText += 'to place your vote.';
-    return measureText;
+    pollConfirmation += `Type "vote $${pollIDString} 1-${choiceNum}"`;
+    pollConfirmation += `${poll.allowOther ? ` or "vote $${pollIDString} <your vote>" ` : ' '}`;
+    pollConfirmation += 'to place your vote.';
+    return pollConfirmation;
   }
 
   @permissionGroup('public');
-  @listen(/^vote[^s]\s*(?:\$(\w{3})\s*)?([^\$]{1}.*)?/i);
+  @respond(/^vote (?:\$(\w{3})\s*)?([^\$]{1}.*)?/i);
+  @listen(/^vote (?:\$(\w{3})\s*)?([^\$]{1}.*)?/i);
   async vote([match, id, voteText], message) {
-    await this.databaseInitialized();
-    if (id && voteText) {  //VoteID and Vote present
-      const responseNum = parseInt(voteText)-1;
-      const measureNum = parseInt(id, 36);
+    if (id && voteText) {  // VoteID and Vote present
+      const responseNum = parseInt(voteText, 10) - 1;
+      const pollNum = parseInt(id, 36);
       let responseText;
-      const currentMeasure = this.bot.db.get('voting.measures')
-        .filter({id: measureNum, open: true})
+      const currentPoll = this.bot.db.get('voting.polls')
+        .filter({ id: pollNum, open: true })
         .first()
         .value();
-      if (currentMeasure) {
-        const maxChoice = currentMeasure.choices.length - (currentMeasure.allowOther ? 2 : 1);
+      if (currentPoll) {
+        const maxChoice = currentPoll.choices.length - (currentPoll.allowOther ? 2 : 1);
         if (!isNaN(responseNum)) {
           if (responseNum >= 0 && responseNum <= maxChoice) {
-            responseText = currentMeasure.choices[responseNum];
+            responseText = currentPoll.choices[responseNum];
           } else {
             return `Invaid vote option ${voteText}`;
           }
-        } else if (currentMeasure.allowOther) {
+        } else if (currentPoll.allowOther) {
           responseText = voteText;
         } else {
           return `Invalid vote option ${voteText}`;
         }
 
         const vote = this.buildVote(false,
-          measureNum,
+          pollNum,
           responseText,
-          message.user.id,);
+          message.user.id);
         this.bot.db.get('voting.votes')
           .push(vote)
           .value();
       } else {
         return 'No vote with that ID open.';
       }
-    } else if (voteText) {  //Quickpoll vote present
+    } else if (voteText) {  // Quickpoll vote present
       const currentPoll = this.bot.db.get('quickpoll.poll').value();
       if (currentPoll.open === true) {
         const vote = this.buildVote(true, '', voteText, message.user.id);
@@ -321,26 +311,27 @@ export class Voting extends ChatPlugin {
           .push(vote)
           .value();
       }
-    } else {  //No vote present
+    } else {  // No vote present
       if (id) {
-        const currentMeasure = this.bot.db.get('voting.measures')
-          .filter({id: parseInt(id, 36), open: true})
+        const currentPoll = this.bot.db.get('voting.polls')
+          .filter({ id: parseInt(id, 36), open: true })
           .first()
           .value();
-        const measureIDString = `000${currentMeasure.id.toString(36)}`.slice(-3);
-        let measureText = `Measure: ${currentMeasure.text} Choices:\n`;
+        const pollIDString = `000${currentPoll.id.toString(36)}`.slice(-3);
+        let pollText = `Poll: ${currentPoll.text} Choices:\n`;
         let choiceNum = 1;
-        currentMeasure.choices.forEach((choice) => {
+        currentPoll.choices.forEach((choice) => {
           if (choice !== 'other') {
-            measureText += `${choiceNum++}.\t${choice}\n`;
+            pollText += `${choiceNum}.\t${choice}\n`;
+            choiceNum += 1;
           }
         });
-        measureText += `Type "vote $${measureIDString} 1-${choiceNum - 1}""`;
-        if (currentMeasure.allowOther) {
-          measureText += ` or "vote $${measureIDString} <your vote>"`;
+        pollText += `Type "vote $${pollIDString} 1-${choiceNum - 1}""`;
+        if (currentPoll.allowOther) {
+          pollText += ` or "vote $${pollIDString} <your vote>"`;
         }
-        measureText += ' to place your vote.';
-        return measureText;
+        pollText += ' to place your vote.';
+        return pollText;
       }
 
       const currentPoll = this.bot.db.get('quickpoll.poll').value();
@@ -352,7 +343,7 @@ export class Voting extends ChatPlugin {
     }
   }
 
-  buildVote (quickpoll, measure, responseText, userID) {
+  buildVote(quickpoll, poll, responseText, userID) {
     if (quickpoll) {
       return {
         response: responseText,
@@ -361,34 +352,32 @@ export class Voting extends ChatPlugin {
       };
     }
     return {
-      measureID: measure,
+      pollID: poll,
       response: responseText,
       user: userID,
       timestamp: Date.now(),
     };
-
   }
 
-  getNextMeasureID() {
-    const highMeasure = this.bot.db.get('voting.measures')
+  getNextPollID() {
+    const highPoll = this.bot.db.get('voting.polls')
       .maxBy('id')
       .value();
-    if (highMeasure) {
-      return highMeasure.id + 1;
+    if (highPoll) {
+      return highPoll.id + 1;
     }
 
     return 1;
   }
 
   async initQuickpoll(pollState, user, questiontext, polltimeout) {
-    await this.databaseInitialized();
     const pollOptions = {
       open: pollState || false,
       question: questiontext || '',
       timeout: polltimeout || 0,
       userID: user || '',
     };
-    this.bot.db.set('quickpoll.poll',pollOptions).value();
+    this.bot.db.set('quickpoll.poll', pollOptions).value();
     this.bot.db.set('quickpoll.votes', [])
       .value();
   }
