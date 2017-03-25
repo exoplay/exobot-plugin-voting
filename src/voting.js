@@ -212,7 +212,7 @@ export default class Voting extends Plugin {
     if (Object.keys(results).length === 0) {
       return 'No votes yet';
     }
-    console.log(results);
+
     const resultsSorted = Object.keys(results).map(k => ({ key: k, value: results[k] }));
     if (resultsSorted.length > 1) {
       resultsSorted.sort((a, b) => b.value - a.value);
